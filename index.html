@@ -1,0 +1,514 @@
+react
+import React, { useState, useEffect } from 'react';
+import { 
+  Home, User, Settings, LogOut, Star, MessageCircle, 
+  Heart, Share2, Send, Edit3, UserPlus, UserCheck, Image as ImageIcon
+} from 'lucide-react';
+
+// --- Database Helpers (Local Storage) ---
+const getDb = () => {
+  const db = localStorage.getItem('socialDb');
+  if (db) return JSON.parse(db);
+  const initialDb = { users: [], posts: [] };
+  localStorage.setItem('socialDb', JSON.stringify(initialDb));
+  return initialDb;
+};
+
+const saveDb = (db) => {
+  localStorage.setItem('socialDb', JSON.stringify(db));
+};
+
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// --- Helper Functions ---
+const getUserRating = (userId, db) => {
+  const userPosts = db.posts.filter(p => p.authorId === userId);
+  let totalStars = 0;
+  let totalRatingsCount = 0;
+
+  userPosts.forEach(post => {
+    const ratings = Object.values(post.ratings || {});
+    if (ratings.length > 0) {
+      totalStars += ratings.reduce((sum, val) => sum + val, 0);
+      totalRatingsCount += ratings.length;
+    }
+  });
+
+  return totalRatingsCount === 0 ? 0 : (totalStars / totalRatingsCount).toFixed(1);
+};
+
+// --- Components ---
+
+// 1. Auth Component (Login / Register)
+const AuthScreen = ({ onLogin }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const db = getDb();
+    setError('');
+
+    if (isLogin) {
+      const user = db.users.find(u => u.username === username && u.password === password);
+      if (user) {
+        onLogin(user);
+      } else {
+        setError('အကောင့်အမည် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။');
+      }
+    } else {
+      if (db.users.find(u => u.username === username)) {
+        setError('ဤအကောင့်အမည်ကို အသုံးပြုပြီးပါပြီ။');
+        return;
+      }
+      const newUser = {
+        id: generateId(),
+        username,
+        password,
+        avatar: '',
+        bio: 'မင်္ဂလာပါ။',
+        followers: [],
+        following: []
+      };
+      db.users.push(newUser);
+      saveDb(db);
+      onLogin(newUser);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+        <h2 className="text-2xl font-bold text-center mb-6 text-blue-600">
+          {isLogin ? 'လော့ဂ်အင်ဝင်ရန်' : 'အကောင့်သစ်ဖွင့်ရန်'}
+        </h2>
+        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">အကောင့်အမည်</label>
+            <input 
+              type="text" 
+              required 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">စကားဝှက်</label>
+            <input 
+              type="password" 
+              required 
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md">
+            {isLogin ? 'ဝင်မည်' : 'အကောင့်ဖွင့်မည်'}
+          </button>
+        </form>
+        <p className="mt-4 text-center text-sm text-gray-600">
+          {isLogin ? 'အကောင့်မရှိသေးဘူးလား? ' : 'အကောင့်ရှိပြီးသားလား? '}
+          <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 hover:underline">
+            {isLogin ? 'အကောင့်သစ်ဖွင့်မည်' : 'လော့ဂ်အင်ဝင်မည်'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// 2. Post Component
+const Post = ({ post, currentUser, db, onUpdate, onViewProfile }) => {
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  
+  const author = db.users.find(u => u.id === post.authorId);
+  const isLiked = post.likes?.includes(currentUser.id);
+  const userRating = post.ratings?.[currentUser.id] || 0;
+  
+  const ratingsList = Object.values(post.ratings || {});
+  const avgRating = ratingsList.length ? (ratingsList.reduce((a, b) => a + b, 0) / ratingsList.length).toFixed(1) : 0;
+
+  const handleLike = () => {
+    const newDb = getDb();
+    const targetPost = newDb.posts.find(p => p.id === post.id);
+    if (!targetPost.likes) targetPost.likes = [];
+    
+    if (targetPost.likes.includes(currentUser.id)) {
+      targetPost.likes = targetPost.likes.filter(id => id !== currentUser.id);
+    } else {
+      targetPost.likes.push(currentUser.id);
+    }
+    saveDb(newDb);
+    onUpdate();
+  };
+
+  const handleRate = (stars) => {
+    if (post.authorId === currentUser.id) {
+      alert("မိမိပို့စ်ကို Rating ပေး၍မရပါ။");
+      return;
+    }
+    const newDb = getDb();
+    const targetPost = newDb.posts.find(p => p.id === post.id);
+    if (!targetPost.ratings) targetPost.ratings = {};
+    targetPost.ratings[currentUser.id] = stars;
+    saveDb(newDb);
+    onUpdate();
+  };
+
+  const handleComment = (e) => {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    const newDb = getDb();
+    const targetPost = newDb.posts.find(p => p.id === post.id);
+    if (!targetPost.comments) targetPost.comments = [];
+    targetPost.comments.push({
+      id: generateId(),
+      userId: currentUser.id,
+      text: commentText,
+      timestamp: Date.now()
+    });
+    saveDb(newDb);
+    setCommentText('');
+    onUpdate();
+  };
+
+  const handleShare = () => {
+    const newDb = getDb();
+    const targetPost = newDb.posts.find(p => p.id === post.id);
+    targetPost.shares = (targetPost.shares || 0) + 1;
+    saveDb(newDb);
+    alert("ပို့စ်ကို မျှဝေပြီးပါပြီ။");
+    onUpdate();
+  };
+
+  if (!author) return null;
+
+  return (
+    <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => onViewProfile(author.id)}>
+          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+            {author.avatar ? <img src={author.avatar} alt="avatar" className="w-full h-full object-cover"/> : <User className="text-gray-500 w-6 h-6"/>}
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 hover:underline">{author.username}</h3>
+            <p className="text-xs text-gray-500">{new Date(post.timestamp).toLocaleString('my-MM')}</p>
+          </div>
+        </div>
+        
+        {/* Post Average Rating Badge */}
+        <div className="flex items-center bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+          <Star className="w-4 h-4 text-yellow-500 fill-current mr-1" />
+          <span className="text-sm font-bold text-yellow-700">{avgRating}</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <p className="text-gray-800 mb-4 whitespace-pre-wrap">{post.content}</p>
+
+      {/* Playstore Style Rating Section for this user */}
+      <div className="py-3 border-t border-b border-gray-100 flex items-center justify-between mb-3">
+        <span className="text-sm text-gray-600 font-medium">Rating ပေးရန်:</span>
+        <div className="flex space-x-1">
+          {[1, 2, 3, 4, 5].map(star => (
+            <Star
+              key={star}
+              onClick={() => handleRate(star)}
+              className={`w-6 h-6 cursor-pointer transition-colors ${
+                star <= userRating ? 'text-yellow-500 fill-current' : 'text-gray-300 hover:text-yellow-400'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-between text-gray-500 text-sm mb-2 px-2">
+        <span>{post.likes?.length || 0} Likes</span>
+        <span>{post.comments?.length || 0} Comments • {post.shares || 0} Shares</span>
+      </div>
+      
+      <div className="flex justify-between border-t border-gray-100 pt-2">
+        <button onClick={handleLike} className={`flex-1 flex justify-center items-center py-2 space-x-2 rounded-md hover:bg-gray-50 ${isLiked ? 'text-red-500' : 'text-gray-600'}`}>
+          <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+          <span>သဘောကျသည်</span>
+        </button>
+        <button onClick={() => setShowComments(!showComments)} className="flex-1 flex justify-center items-center py-2 space-x-2 text-gray-600 rounded-md hover:bg-gray-50">
+          <MessageCircle className="w-5 h-5" />
+          <span>မှတ်ချက်</span>
+        </button>
+        <button onClick={handleShare} className="flex-1 flex justify-center items-center py-2 space-x-2 text-gray-600 rounded-md hover:bg-gray-50">
+          <Share2 className="w-5 h-5" />
+          <span>မျှဝေမည်</span>
+        </button>
+      </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <form onSubmit={handleComment} className="flex space-x-2 mb-4">
+            <input
+              type="text"
+              className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="မှတ်ချက်ရေးရန်..."
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+            />
+            <button type="submit" className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
+              <Send className="w-5 h-5" />
+            </button>
+          </form>
+          
+          <div className="space-y-3 max-h-48 overflow-y-auto">
+            {post.comments?.map(comment => {
+              const commenter = db.users.find(u => u.id === comment.userId);
+              return (
+                <div key={comment.id} className="flex space-x-2">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    {commenter?.avatar ? <img src={commenter.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-gray-500 w-4 h-4"/>}
+                  </div>
+                  <div className="bg-gray-100 rounded-2xl rounded-tl-none px-3 py-2 max-w-[80%]">
+                    <p className="font-semibold text-xs">{commenter?.username}</p>
+                    <p className="text-sm text-gray-800">{comment.text}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 3. Main Feed
+const Feed = ({ currentUser, db, onUpdate, onViewProfile }) => {
+  const [newPost, setNewPost] = useState('');
+
+  const handlePost = (e) => {
+    e.preventDefault();
+    if (!newPost.trim()) return;
+    const newDb = getDb();
+    newDb.posts.unshift({
+      id: generateId(),
+      authorId: currentUser.id,
+      content: newPost,
+      timestamp: Date.now(),
+      likes: [],
+      comments: [],
+      ratings: {},
+      shares: 0
+    });
+    saveDb(newDb);
+    setNewPost('');
+    onUpdate();
+  };
+
+  const sortedPosts = [...db.posts].sort((a, b) => b.timestamp - a.timestamp);
+
+  return (
+    <div className="pb-20">
+      {/* Create Post */}
+      <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
+        <form onSubmit={handlePost}>
+          <div className="flex space-x-3">
+            <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+              {currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-gray-500 w-6 h-6"/>}
+            </div>
+            <textarea
+              className="flex-1 bg-gray-100 rounded-xl px-4 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none h-12"
+              placeholder={`ဘာတွေတွေးနေလဲ, ${currentUser.username}?`}
+              value={newPost}
+              onChange={(e) => setNewPost(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end mt-2">
+            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-medium text-sm">
+              တင်မည်
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Post List */}
+      {sortedPosts.length > 0 ? (
+        sortedPosts.map(post => (
+          <Post 
+            key={post.id} 
+            post={post} 
+            currentUser={currentUser} 
+            db={db} 
+            onUpdate={onUpdate} 
+            onViewProfile={onViewProfile}
+          />
+        ))
+      ) : (
+        <div className="text-center text-gray-500 mt-10">ပို့စ်များမရှိသေးပါ။ ပထမဆုံး စတင်ရေးသားလိုက်ပါ။</div>
+      )}
+    </div>
+  );
+};
+
+// 4. Profile Component
+const Profile = ({ userId, currentUser, db, onUpdate }) => {
+  const profileUser = db.users.find(u => u.id === userId);
+  const isMe = userId === currentUser.id;
+  const isFollowing = profileUser?.followers?.includes(currentUser.id);
+  
+  const userRating = getUserRating(userId, db);
+  const userPosts = db.posts.filter(p => p.authorId === userId).sort((a, b) => b.timestamp - a.timestamp);
+
+  if (!profileUser) return <div className="p-4">User not found</div>;
+
+  const handleFollow = () => {
+    const newDb = getDb();
+    const targetUser = newDb.users.find(u => u.id === userId);
+    const me = newDb.users.find(u => u.id === currentUser.id);
+    
+    if (!targetUser.followers) targetUser.followers = [];
+    if (!me.following) me.following = [];
+
+    if (isFollowing) {
+      targetUser.followers = targetUser.followers.filter(id => id !== currentUser.id);
+      me.following = me.following.filter(id => id !== userId);
+    } else {
+      targetUser.followers.push(currentUser.id);
+      me.following.push(userId);
+    }
+    
+    saveDb(newDb);
+    onUpdate();
+  };
+
+  return (
+    <div className="pb-20">
+      <div className="bg-white rounded-xl shadow-sm mb-4 overflow-hidden">
+        {/* Cover Photo Placeholder */}
+        <div className="h-32 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+        
+        <div className="px-4 pb-4">
+          <div className="flex justify-between items-end -mt-12 mb-4">
+            <div className="w-24 h-24 rounded-full border-4 border-white bg-gray-200 flex items-center justify-center overflow-hidden z-10">
+              {profileUser.avatar ? <img src={profileUser.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-gray-500 w-12 h-12"/>}
+            </div>
+            {!isMe && (
+              <button 
+                onClick={handleFollow}
+                className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-1 ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-blue-600 text-white'}`}
+              >
+                {isFollowing ? <><UserCheck className="w-4 h-4"/> <span>ဖော်လိုလုပ်ထားသည်</span></> : <><UserPlus className="w-4 h-4"/> <span>ဖော်လိုလုပ်မည်</span></>}
+              </button>
+            )}
+          </div>
+          
+          <h2 className="text-2xl font-bold text-gray-900">{profileUser.username}</h2>
+          <p className="text-gray-600 text-sm mt-1">{profileUser.bio}</p>
+          
+          <div className="flex space-x-4 mt-4 text-sm text-gray-600">
+            <div><strong className="text-gray-900">{profileUser.followers?.length || 0}</strong> Followers</div>
+            <div><strong className="text-gray-900">{profileUser.following?.length || 0}</strong> Following</div>
+          </div>
+          
+          {/* Profile Rating Status */}
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-xs text-yellow-800 font-semibold uppercase tracking-wider">Profile Rating</span>
+              <span className="text-sm text-yellow-900">ပို့စ်များ၏ ရမှတ်များအပေါ် မူတည်တွက်ချက်ထားသည်</span>
+            </div>
+            <div className="flex items-center space-x-1 bg-white px-3 py-1 rounded-full shadow-sm">
+              <Star className="w-5 h-5 text-yellow-500 fill-current" />
+              <span className="font-bold text-lg text-gray-800">{userRating}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="font-bold text-lg mb-3 text-gray-800 px-1">ပို့စ်များ</h3>
+      {userPosts.length > 0 ? (
+        userPosts.map(post => (
+          <Post key={post.id} post={post} currentUser={currentUser} db={db} onUpdate={onUpdate} onViewProfile={() => {}} />
+        ))
+      ) : (
+        <div className="text-center text-gray-500 py-6 bg-white rounded-xl shadow-sm">ပို့စ်များ မရှိသေးပါ။</div>
+      )}
+    </div>
+  );
+};
+
+// 5. Settings Component
+const SettingsView = ({ currentUser, db, onUpdate, onLogout }) => {
+  const [bio, setBio] = useState(currentUser.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState(currentUser.avatar || '');
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const newDb = getDb();
+    const userIndex = newDb.users.findIndex(u => u.id === currentUser.id);
+    if (userIndex !== -1) {
+      newDb.users[userIndex].bio = bio;
+      newDb.users[userIndex].avatar = avatarUrl;
+      saveDb(newDb);
+      alert('ပရိုဖိုင် ပြင်ဆင်မှု အောင်မြင်ပါသည်။');
+      onUpdate();
+    }
+  };
+
+  return (
+    <div className="bg-white p-4 rounded-xl shadow-sm pb-20">
+      <h2 className="text-xl font-bold mb-4 flex items-center"><Edit3 className="w-5 h-5 mr-2" /> ဆက်တင်များ</h2>
+      
+      <form onSubmit={handleSave} className="space-y-4 border-b border-gray-100 pb-6 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">ပရိုဖိုင်ပုံ Link (URL)</label>
+          <div className="flex items-center space-x-2">
+            <ImageIcon className="text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
+              placeholder="https://..."
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">မိမိအကြောင်း (Bio)</label>
+          <textarea 
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 h-24 resize-none"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="w-full py-2 bg-gray-800 text-white rounded-md font-medium hover:bg-gray-900 transition-colors">
+          သိမ်းဆည်းမည်
+        </button>
+      </form>
+
+      <button onClick={onLogout} className="w-full py-3 flex items-center justify-center space-x-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-md font-medium transition-colors">
+        <LogOut className="w-5 h-5" />
+        <span>အကောင့်ထွက်မည်</span>
+      </button>
+    </div>
+  );
+};
+
+
+// --- Main App Component ---
+export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [db, setDb] = useState(getDb());
+  const [activeTab, setActiveTab] = useState('home'); // home, profile, settings, view_user
+  const [viewingUserId, setViewingUserId] = useState(null);
+
+  // Sync state with DB updates
+  const handleUpdate = () => {
+    const updatedDb = getDb();
+    setDb(updatedDb);
+    if (currentUser) {
+      const updatedUser 
