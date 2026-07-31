@@ -1,456 +1,425 @@
-```react
-import React, { useState, useEffect } from 'react';
-import { 
-  Home, User, Settings, LogOut, Star, MessageCircle, 
-  Heart, Share2, Send, Edit3, UserPlus, UserCheck, Image as ImageIcon
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialRate Web App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- React & ReactDOM CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel JS Compiler -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
 
-// ==========================================
-// PART 1: Database & Helper Functions
-// ==========================================
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-// ဒေတာများကို LocalStorage တွင် သိမ်းဆည်းရန်နှင့် ပြန်ယူရန်
-const getDb = () => {
-  const db = localStorage.getItem('socialProjectDb');
-  if (db) return JSON.parse(db);
-  const initialDb = { users: [], posts: [] };
-  localStorage.setItem('socialProjectDb', JSON.stringify(initialDb));
-  return initialDb;
-};
+        // --- Database Helpers ---
+        const getDb = () => {
+          const db = localStorage.getItem('socialProjectDb');
+          if (db) return JSON.parse(db);
+          const initialDb = { users: [], posts: [] };
+          localStorage.setItem('socialProjectDb', JSON.stringify(initialDb));
+          return initialDb;
+        };
 
-const saveDb = (db) => {
-  localStorage.setItem('socialProjectDb', JSON.stringify(db));
-};
+        const saveDb = (db) => {
+          localStorage.setItem('socialProjectDb', JSON.stringify(db));
+        };
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+        const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// User တစ်ယောက်၏ Profile Rating တွက်ချက်ရန် (Posts အားလုံး၏ Rating ပျမ်းမျှ)
-const calculateUserRating = (userId, db) => {
-  const userPosts = db.posts.filter(p => p.authorId === userId);
-  let totalStars = 0;
-  let totalRatingsCount = 0;
+        const calculateUserRating = (userId, db) => {
+          const userPosts = db.posts.filter(p => p.authorId === userId);
+          let totalStars = 0;
+          let totalRatingsCount = 0;
 
-  userPosts.forEach(post => {
-    const ratings = Object.values(post.ratings || {});
-    if (ratings.length > 0) {
-      totalStars += ratings.reduce((sum, val) => sum + val, 0);
-      totalRatingsCount += ratings.length;
-    }
-  });
+          userPosts.forEach(post => {
+            const ratings = Object.values(post.ratings || {});
+            if (ratings.length > 0) {
+              totalStars += ratings.reduce((sum, val) => sum + val, 0);
+              totalRatingsCount += ratings.length;
+            }
+          });
 
-  return totalRatingsCount === 0 ? "0.0" : (totalStars / totalRatingsCount).toFixed(1);
-};
+          return totalRatingsCount === 0 ? "0.0" : (totalStars / totalRatingsCount).toFixed(1);
+        };
 
+        // --- Auth Screen ---
+        const AuthScreen = ({ onLogin }) => {
+          const [isLogin, setIsLogin] = useState(true);
+          const [username, setUsername] = useState('');
+          const [password, setPassword] = useState('');
+          const [error, setError] = useState('');
 
-// ==========================================
-// PART 2: Authentication Component (Login/Register)
-// ==========================================
-const AuthScreen = ({ onLogin }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            const db = getDb();
+            setError('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const db = getDb();
-    setError('');
+            if (isLogin) {
+              const user = db.users.find(u => u.username === username && u.password === password);
+              if (user) {
+                onLogin(user);
+              } else {
+                setError('အကောင့်အမည် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။');
+              }
+            } else {
+              if (db.users.find(u => u.username === username)) {
+                setError('ဤအကောင့်အမည်ကို အသုံးပြုပြီးပါပြီ။');
+                return;
+              }
+              const newUser = {
+                id: generateId(),
+                username,
+                password,
+                avatar: '',
+                bio: 'မင်္ဂလာပါ။ ဤနေရာသည် ကျွန်ုပ်၏ ပရိုဖိုင်ဖြစ်ပါသည်။',
+                followers: [],
+                following: []
+              };
+              db.users.push(newUser);
+              saveDb(db);
+              onLogin(newUser);
+            }
+          };
 
-    if (isLogin) {
-      // Login စစ်ဆေးခြင်း
-      const user = db.users.find(u => u.username === username && u.password === password);
-      if (user) {
-        onLogin(user);
-      } else {
-        setError('အကောင့်အမည် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။');
-      }
-    } else {
-      // Register အကောင့်သစ်ဖွင့်ခြင်း
-      if (db.users.find(u => u.username === username)) {
-        setError('ဤအကောင့်အမည်ကို အသုံးပြုပြီးပါပြီ။ အခြားအမည်ပေးပါ။');
-        return;
-      }
-      const newUser = {
-        id: generateId(),
-        username,
-        password,
-        avatar: '',
-        bio: 'မင်္ဂလာပါ။ ဤနေရာသည် ကျွန်ုပ်၏ ပရိုဖိုင်ဖြစ်ပါသည်။',
-        followers: [],
-        following: []
-      };
-      db.users.push(newUser);
-      saveDb(db);
-      onLogin(newUser);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-blue-600 mb-1">SocialRate</h1>
-          <p className="text-slate-500 text-sm">Rating စနစ်ပါဝင်သော ဆိုရှယ်မီဒီယာ</p>
-        </div>
-        
-        <h2 className="text-xl font-bold text-center mb-6 text-slate-800">
-          {isLogin ? 'လော့ဂ်အင်ဝင်ရန်' : 'အကောင့်သစ်ဖွင့်ရန်'}
-        </h2>
-        {error && <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm mb-4 text-center">{error}</div>}
-        
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">အကောင့်အမည်</label>
-            <input 
-              type="text" required 
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              value={username} onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">စကားဝှက်</label>
-            <input 
-              type="password" required 
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
-          <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors">
-            {isLogin ? 'ဝင်မည်' : 'အကောင့်ဖွင့်မည်'}
-          </button>
-        </form>
-        
-        <div className="mt-6 text-center text-sm text-slate-600">
-          {isLogin ? 'အကောင့်မရှိသေးဘူးလား? ' : 'အကောင့်ရှိပြီးသားလား? '}
-          <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 font-semibold hover:underline">
-            {isLogin ? 'အကောင့်သစ်ဖွင့်မည်' : 'လော့ဂ်အင်ဝင်မည်'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-// ==========================================
-// PART 3: Post UI & Actions Component
-// ==========================================
-const PostItem = ({ post, currentUser, db, onUpdate, onViewProfile }) => {
-  const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  
-  const author = db.users.find(u => u.id === post.authorId);
-  if (!author) return null;
-
-  // State Variables for Post
-  const isLiked = post.likes?.includes(currentUser.id);
-  const myRatingForPost = post.ratings?.[currentUser.id] || 0;
-  
-  // Calculate Average Rating for this specific post
-  const ratingsArray = Object.values(post.ratings || {});
-  const postAvgRating = ratingsArray.length 
-    ? (ratingsArray.reduce((a, b) => a + b, 0) / ratingsArray.length).toFixed(1) 
-    : "0.0";
-
-  // Action Handlers
-  const handleLike = () => {
-    const newDb = getDb();
-    const targetPost = newDb.posts.find(p => p.id === post.id);
-    if (!targetPost.likes) targetPost.likes = [];
-    
-    if (targetPost.likes.includes(currentUser.id)) {
-      targetPost.likes = targetPost.likes.filter(id => id !== currentUser.id);
-    } else {
-      targetPost.likes.push(currentUser.id);
-    }
-    saveDb(newDb);
-    onUpdate();
-  };
-
-  const handleRate = (stars) => {
-    if (post.authorId === currentUser.id) {
-      alert("မိမိပို့စ်ကို Rating ပေး၍မရပါ။");
-      return;
-    }
-    const newDb = getDb();
-    const targetPost = newDb.posts.find(p => p.id === post.id);
-    if (!targetPost.ratings) targetPost.ratings = {};
-    targetPost.ratings[currentUser.id] = stars;
-    saveDb(newDb);
-    onUpdate();
-  };
-
-  const handleComment = (e) => {
-    e.preventDefault();
-    if (!commentText.trim()) return;
-    const newDb = getDb();
-    const targetPost = newDb.posts.find(p => p.id === post.id);
-    if (!targetPost.comments) targetPost.comments = [];
-    targetPost.comments.push({
-      id: generateId(),
-      userId: currentUser.id,
-      text: commentText,
-      timestamp: Date.now()
-    });
-    saveDb(newDb);
-    setCommentText('');
-    onUpdate();
-  };
-
-  const handleShare = () => {
-    const newDb = getDb();
-    const targetPost = newDb.posts.find(p => p.id === post.id);
-    targetPost.shares = (targetPost.shares || 0) + 1;
-    saveDb(newDb);
-    onUpdate();
-  };
-
-  return (
-    <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
-      {/* Post Header */}
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => onViewProfile(author.id)}>
-          <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border-2 border-transparent group-hover:border-blue-500 transition-all">
-            {author.avatar ? <img src={author.avatar} alt="avatar" className="w-full h-full object-cover"/> : <User className="text-slate-500 w-6 h-6"/>}
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{author.username}</h3>
-            <p className="text-xs text-slate-500 font-medium">{new Date(post.timestamp).toLocaleTimeString('my-MM', {hour: '2-digit', minute:'2-digit'})} • {new Date(post.timestamp).toLocaleDateString()}</p>
-          </div>
-        </div>
-        
-        {/* Post Average Rating Badge */}
-        <div className="flex flex-col items-end">
-          <div className="flex items-center bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 shadow-sm">
-            <Star className="w-4 h-4 text-amber-500 fill-current mr-1" />
-            <span className="text-sm font-black text-amber-700">{postAvgRating}</span>
-          </div>
-          <span className="text-[10px] text-slate-400 mt-1">{ratingsArray.length} reviews</span>
-        </div>
-      </div>
-
-      {/* Post Content */}
-      <p className="text-slate-800 mb-4 whitespace-pre-wrap leading-relaxed">{post.content}</p>
-
-      {/* Playstore Style Rating System UI */}
-      <div className="py-3 border-t border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-        <div className="flex items-center space-x-2 text-sm">
-          <span className="text-slate-600 font-medium">Rating ပေးရန်:</span>
-          {myRatingForPost > 0 && <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded text-xs">{myRatingForPost} stars</span>}
-        </div>
-        <div className="flex space-x-1">
-          {[1, 2, 3, 4, 5].map(star => (
-            <Star
-              key={star}
-              onClick={() => handleRate(star)}
-              className={`w-7 h-7 sm:w-6 sm:h-6 cursor-pointer transition-all transform hover:scale-110 ${
-                star <= myRatingForPost ? 'text-amber-400 fill-current' : 'text-slate-200 hover:text-amber-300'
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="flex justify-between text-slate-500 text-sm mb-3 px-1">
-        <span className="font-medium">{post.likes?.length || 0} Likes</span>
-        <span className="font-medium">{post.comments?.length || 0} Comments • {post.shares || 0} Shares</span>
-      </div>
-      
-      {/* Action Buttons */}
-      <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
-        <button onClick={handleLike} className={`flex-1 flex justify-center items-center py-2 space-x-1.5 rounded-lg font-medium transition-colors ${isLiked ? 'text-red-500 bg-red-50' : 'text-slate-600 hover:bg-slate-50'}`}>
-          <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-          <span className="text-sm">သဘောကျသည်</span>
-        </button>
-        <button onClick={() => setShowComments(!showComments)} className="flex-1 flex justify-center items-center py-2 space-x-1.5 text-slate-600 rounded-lg hover:bg-slate-50 font-medium transition-colors">
-          <MessageCircle className="w-5 h-5" />
-          <span className="text-sm">မှတ်ချက်</span>
-        </button>
-        <button onClick={handleShare} className="flex-1 flex justify-center items-center py-2 space-x-1.5 text-slate-600 rounded-lg hover:bg-slate-50 font-medium transition-colors">
-          <Share2 className="w-5 h-5" />
-          <span className="text-sm">မျှဝေမည်</span>
-        </button>
-      </div>
-
-      {/* Comments Section */}
-      {showComments && (
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <form onSubmit={handleComment} className="flex space-x-2 mb-4">
-            <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-               {currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-slate-500 w-4 h-4"/>}
-            </div>
-            <input
-              type="text"
-              className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="မှတ်ချက်ရေးရန်..."
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-            />
-            <button type="submit" className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors">
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
-          
-          <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-            {post.comments?.map(comment => {
-              const commenter = db.users.find(u => u.id === comment.userId);
-              return (
-                <div key={comment.id} className="flex space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => onViewProfile(commenter?.id)}>
-                    {commenter?.avatar ? <img src={commenter.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-slate-500 w-4 h-4"/>}
+          return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200">
+                <div className="text-center mb-8">
+                  <h1 className="text-3xl font-black text-blue-600 mb-1">SocialRate</h1>
+                  <p className="text-slate-500 text-sm">Rating စနစ်ပါဝင်သော ဆိုရှယ်မီဒီယာ</p>
+                </div>
+                
+                <h2 className="text-xl font-bold text-center mb-6 text-slate-800">
+                  {isLogin ? 'လော့ဂ်အင်ဝင်ရန်' : 'အကောင့်သစ်ဖွင့်ရန်'}
+                </h2>
+                {error && <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm mb-4 text-center">{error}</div>}
+                
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">အကောင့်အမည်</label>
+                    <input 
+                      type="text" required 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={username} onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Username"
+                    />
                   </div>
-                  <div className="bg-slate-100 rounded-2xl rounded-tl-none px-4 py-2.5 max-w-[85%]">
-                    <p className="font-bold text-sm text-slate-900 cursor-pointer" onClick={() => onViewProfile(commenter?.id)}>{commenter?.username}</p>
-                    <p className="text-sm text-slate-700 mt-0.5">{comment.text}</p>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">စကားဝှက်</label>
+                    <input 
+                      type="password" required 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <button type="submit" className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">
+                    {isLogin ? 'ဝင်မည်' : 'အကောင့်ဖွင့်မည်'}
+                  </button>
+                </form>
+                
+                <div className="mt-6 text-center text-sm text-slate-600">
+                  {isLogin ? 'အကောင့်မရှိသေးဘူးလား? ' : 'အကောင့်ရှိပြီးသားလား? '}
+                  <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 font-semibold hover:underline">
+                    {isLogin ? 'အကောင့်သစ်ဖွင့်မည်' : 'လော့ဂ်အင်ဝင်မည်'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // --- Post Component ---
+        const PostItem = ({ post, currentUser, db, onUpdate, onViewProfile }) => {
+          const [showComments, setShowComments] = useState(false);
+          const [commentText, setCommentText] = useState('');
+          
+          const author = db.users.find(u => u.id === post.authorId);
+          if (!author) return null;
+
+          const isLiked = post.likes?.includes(currentUser.id);
+          const myRatingForPost = post.ratings?.[currentUser.id] || 0;
+          
+          const ratingsArray = Object.values(post.ratings || {});
+          const postAvgRating = ratingsArray.length 
+            ? (ratingsArray.reduce((a, b) => a + b, 0) / ratingsArray.length).toFixed(1) 
+            : "0.0";
+
+          const handleLike = () => {
+            const newDb = getDb();
+            const targetPost = newDb.posts.find(p => p.id === post.id);
+            if (!targetPost.likes) targetPost.likes = [];
+            
+            if (targetPost.likes.includes(currentUser.id)) {
+              targetPost.likes = targetPost.likes.filter(id => id !== currentUser.id);
+            } else {
+              targetPost.likes.push(currentUser.id);
+            }
+            saveDb(newDb);
+            onUpdate();
+          };
+
+          const handleRate = (stars) => {
+            if (post.authorId === currentUser.id) {
+              alert("မိမိပို့စ်ကို Rating ပေး၍မရပါ။");
+              return;
+            }
+            const newDb = getDb();
+            const targetPost = newDb.posts.find(p => p.id === post.id);
+            if (!targetPost.ratings) targetPost.ratings = {};
+            targetPost.ratings[currentUser.id] = stars;
+            saveDb(newDb);
+            onUpdate();
+          };
+
+          const handleComment = (e) => {
+            e.preventDefault();
+            if (!commentText.trim()) return;
+            const newDb = getDb();
+            const targetPost = newDb.posts.find(p => p.id === post.id);
+            if (!targetPost.comments) targetPost.comments = [];
+            targetPost.comments.push({
+              id: generateId(),
+              userId: currentUser.id,
+              text: commentText,
+              timestamp: Date.now()
+            });
+            saveDb(newDb);
+            setCommentText('');
+            onUpdate();
+          };
+
+          const handleShare = () => {
+            const newDb = getDb();
+            const targetPost = newDb.posts.find(p => p.id === post.id);
+            targetPost.shares = (targetPost.shares || 0) + 1;
+            saveDb(newDb);
+            onUpdate();
+          };
+
+          return (
+            <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => onViewProfile(author.id)}>
+                  <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                    {author.avatar ? <img src={author.avatar} alt="avatar" className="w-full h-full object-cover"/> : <i className="fa-solid fa-user text-slate-500"></i>}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">{author.username}</h3>
+                    <p className="text-xs text-slate-500">{new Date(post.timestamp).toLocaleTimeString('my-MM')} • {new Date(post.timestamp).toLocaleDateString()}</p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+                
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200">
+                    <i className="fa-solid fa-star text-amber-500 mr-1"></i>
+                    <span className="text-sm font-black text-amber-700">{postAvgRating}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1">{ratingsArray.length} reviews</span>
+                </div>
+              </div>
 
+              <p className="text-slate-800 mb-4 whitespace-pre-wrap">{post.content}</p>
 
-// ==========================================
-// PART 4: Home Feed Component
-// ==========================================
-const FeedView = ({ currentUser, db, onUpdate, onViewProfile }) => {
-  const [newPost, setNewPost] = useState('');
+              <div className="py-3 border-t border-b border-slate-100 flex items-center justify-between mb-3">
+                <span className="text-slate-600 text-sm font-medium">Rating ပေးရန်:</span>
+                <div className="flex space-x-1">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <i
+                      key={star}
+                      onClick={() => handleRate(star)}
+                      className={`fa-star text-2xl cursor-pointer ${
+                        star <= myRatingForPost ? 'fa-solid text-amber-400' : 'fa-regular text-slate-300'
+                      }`}
+                    ></i>
+                  ))}
+                </div>
+              </div>
 
-  const handleCreatePost = (e) => {
-    e.preventDefault();
-    if (!newPost.trim()) return;
-    const newDb = getDb();
-    newDb.posts.unshift({
-      id: generateId(),
-      authorId: currentUser.id,
-      content: newPost,
-      timestamp: Date.now(),
-      likes: [],
-      comments: [],
-      ratings: {},
-      shares: 0
-    });
-    saveDb(newDb);
-    setNewPost('');
-    onUpdate();
-  };
+              <div className="flex justify-between text-slate-500 text-sm mb-3 px-1">
+                <span>{post.likes?.length || 0} Likes</span>
+                <span>{post.comments?.length || 0} Comments • {post.shares || 0} Shares</span>
+              </div>
+              
+              <div className="flex justify-between gap-2 border-t border-slate-100 pt-3">
+                <button onClick={handleLike} className={`flex-1 py-2 rounded-lg font-medium ${isLiked ? 'text-red-500 bg-red-50' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  <i className={`fa-heart ${isLiked ? 'fa-solid' : 'fa-regular'}`}></i>
+                  <span className="text-sm ml-1">သဘောကျသည်</span>
+                </button>
+                <button onClick={() => setShowComments(!showComments)} className="flex-1 py-2 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">
+                  <i className="fa-regular fa-comment"></i>
+                  <span className="text-sm ml-1">မှတ်ချက်</span>
+                </button>
+                <button onClick={handleShare} className="flex-1 py-2 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">
+                  <i className="fa-solid fa-share"></i>
+                  <span className="text-sm ml-1">မျှဝေမည်</span>
+                </button>
+              </div>
 
-  const sortedPosts = [...db.posts].sort((a, b) => b.timestamp - a.timestamp);
-
-  return (
-    <div className="pb-24 animate-in fade-in duration-300">
-      {/* Create Post Area */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-        <form onSubmit={handleCreatePost}>
-          <div className="flex space-x-3">
-            <div className="w-12 h-12 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden" onClick={() => onViewProfile(currentUser.id)}>
-              {currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-slate-500 w-6 h-6"/>}
+              {showComments && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <form onSubmit={handleComment} className="flex space-x-2 mb-4">
+                    <input
+                      type="text"
+                      className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none"
+                      placeholder="မှတ်ချက်ရေးရန်..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                    />
+                    <button type="submit" className="p-2 text-blue-600 hover:bg-blue-100 rounded-full">
+                      <i className="fa-solid fa-paper-plane"></i>
+                    </button>
+                  </form>
+                  
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {post.comments?.map(comment => {
+                      const commenter = db.users.find(u => u.id === comment.userId);
+                      return (
+                        <div key={comment.id} className="flex space-x-2">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            {commenter?.avatar ? <img src={commenter.avatar} alt="" className="w-full h-full object-cover"/> : <i className="fa-solid fa-user text-xs text-slate-500"></i>}
+                          </div>
+                          <div className="bg-slate-100 rounded-2xl rounded-tl-none px-4 py-2 max-w-[85%]">
+                            <p className="font-bold text-sm text-slate-900">{commenter?.username}</p>
+                            <p className="text-sm text-slate-700">{comment.text}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-            <textarea
-              className="flex-1 bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none h-20"
-              placeholder={`ဘာတွေတွေးနေလဲ, ${currentUser.username}?`}
-              value={newPost}
-              onChange={(e) => setNewPost(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end mt-3">
-            <button type="submit" disabled={!newPost.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-bold text-sm transition-colors shadow-sm">
-              ပို့စ်တင်မည်
-            </button>
-          </div>
-        </form>
-      </div>
+          );
+        };
 
-      {/* Post List */}
-      <div className="space-y-4">
-        {sortedPosts.length > 0 ? (
-          sortedPosts.map(post => (
-            <PostItem key={post.id} post={post} currentUser={currentUser} db={db} onUpdate={onUpdate} onViewProfile={onViewProfile} />
-          ))
-        ) : (
-          <div className="text-center text-slate-500 mt-12 bg-white p-8 rounded-2xl border border-dashed border-slate-300">
-            ပို့စ်များမရှိသေးပါ။ ပထမဆုံး စတင်ရေးသားလိုက်ပါ။
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+        // --- Feed View ---
+        const FeedView = ({ currentUser, db, onUpdate, onViewProfile }) => {
+          const [newPost, setNewPost] = useState('');
 
+          const handleCreatePost = (e) => {
+            e.preventDefault();
+            if (!newPost.trim()) return;
+            const newDb = getDb();
+            newDb.posts.unshift({
+              id: generateId(),
+              authorId: currentUser.id,
+              content: newPost,
+              timestamp: Date.now(),
+              likes: [],
+              comments: [],
+              ratings: {},
+              shares: 0
+            });
+            saveDb(newDb);
+            setNewPost('');
+            onUpdate();
+          };
 
-// ==========================================
-// PART 5: Profile View & Follow System
-// ==========================================
-const ProfileView = ({ userId, currentUser, db, onUpdate, onViewProfile }) => {
-  const profileUser = db.users.find(u => u.id === userId);
-  const isMe = userId === currentUser.id;
-  const isFollowing = profileUser?.followers?.includes(currentUser.id);
-  
-  const totalProfileRating = calculateUserRating(userId, db);
-  const userPosts = db.posts.filter(p => p.authorId === userId).sort((a, b) => b.timestamp - a.timestamp);
+          const sortedPosts = [...db.posts].sort((a, b) => b.timestamp - a.timestamp);
 
-  if (!profileUser) return <div className="p-4 text-center">User not found</div>;
+          return (
+            <div className="pb-24">
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                <form onSubmit={handleCreatePost}>
+                  <div className="flex space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                      {currentUser.avatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover"/> : <i className="fa-solid fa-user text-slate-500"></i>}
+                    </div>
+                    <textarea
+                      className="flex-1 bg-slate-50 rounded-xl border border-slate-200 px-4 py-2 focus:outline-none focus:bg-white resize-none h-20"
+                      placeholder={`ဘာတွေတွေးနေလဲ, ${currentUser.username}?`}
+                      value={newPost}
+                      onChange={(e) => setNewPost(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-end mt-3">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold text-sm">
+                      ပို့စ်တင်မည်
+                    </button>
+                  </div>
+                </form>
+              </div>
 
-  const handleFollowToggle = () => {
-    const newDb = getDb();
-    const targetUser = newDb.users.find(u => u.id === userId);
-    const me = newDb.users.find(u => u.id === currentUser.id);
-    
-    if (!targetUser.followers) targetUser.followers = [];
-    if (!me.following) me.following = [];
-
-    if (isFollowing) {
-      targetUser.followers = targetUser.followers.filter(id => id !== currentUser.id);
-      me.following = me.following.filter(id => id !== userId);
-    } else {
-      targetUser.followers.push(currentUser.id);
-      me.following.push(userId);
-    }
-    
-    saveDb(newDb);
-    onUpdate();
-  };
-
-  return (
-    <div className="pb-24 animate-in slide-in-from-right-4 duration-300">
-      {/* Profile Header Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 mb-6 overflow-hidden">
-        <div className="h-36 bg-gradient-to-r from-blue-500 to-indigo-600 relative">
-          <div className="absolute inset-0 bg-black/10"></div>
-        </div>
-        
-        <div className="px-5 pb-6">
-          <div className="flex justify-between items-end -mt-14 mb-4 relative z-10">
-            <div className="w-28 h-28 rounded-full border-4 border-white bg-slate-200 flex items-center justify-center overflow-hidden shadow-md">
-              {profileUser.avatar ? <img src={profileUser.avatar} alt="" className="w-full h-full object-cover"/> : <User className="text-slate-400 w-12 h-12"/>}
+              <div className="space-y-4">
+                {sortedPosts.length > 0 ? (
+                  sortedPosts.map(post => (
+                    <PostItem key={post.id} post={post} currentUser={currentUser} db={db} onUpdate={onUpdate} onViewProfile={onViewProfile} />
+                  ))
+                ) : (
+                  <div className="text-center text-slate-500 py-10 bg-white rounded-2xl border border-dashed border-slate-300">
+                    ပို့စ်များမရှိသေးပါ။ ပထမဆုံး စတင်ရေးသားလိုက်ပါ။
+                  </div>
+                )}
+              </div>
             </div>
-            {!isMe && (
-              <button 
-                onClick={handleFollowToggle}
-                className={`px-5 py-2 rounded-full font-bold text-sm flex items-center space-x-2 transition-all shadow-sm ${
-                  isFollowing ? 'bg-slate-100 text-slate-800 hover:bg-slate-200' : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {isFollowing ? <><UserCheck className="w-4 h-4"/> <span>ဖော်လိုလုပ်ထားသည်</span></> : <><UserPlus className="w-4 h-4"/> <span>ဖော်လိုလုပ်မည်</span></>}
-              </button>
-            )}
-          </div>
+          );
+        };
+
+        // --- Profile View ---
+        const ProfileView = ({ userId, currentUser, db, onUpdate, onViewProfile }) => {
+          const profileUser = db.users.find(u => u.id === userId);
+          const isMe = userId === currentUser.id;
+          const isFollowing = profileUser?.followers?.includes(currentUser.id);
           
-          <h2 className="text-2xl font-black text-slate-900">{profileUser.username}</h2>
-          <p className="text-slate-600 text-sm mt-2 leading-relaxed">{profileUser.bio}</p>
-          
-          <div className="flex space-x-6 mt-5 text-sm">
-            <div className="flex flex-col items-center"><strong className="text-xl text-slate-900">{profileUser.followers?.length || 0}</strong> <span className="text-slate-500 font-medium">Followers</span></div>
-            <div className="flex flex-col items-center"><strong className="text-xl text-slate-900">{profileUser.following?.length || 0}</strong> <span className="text-slate-500 font-medium">Following</span></div>
-            <div className="flex flex-col items-center"><strong className="text-xl text-slate-900">{userPosts.length}</strong> <span className="text-slate-500 font-medium">Posts</span></div>
-          </div>
-          
-          {/* Main Feature: Total Profile Rating Display */}
-          <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-100 flex items-center j
+          const totalProfileRating = calculateUserRating(userId, db);
+          const userPosts = db.posts.filter(p => p.authorId === userId).sort((a, b) => b.timestamp - a.timestamp);
+
+          if (!profileUser) return <div className="p-4 text-center">User not found</div>;
+
+          const handleFollowToggle = () => {
+            const newDb = getDb();
+            const targetUser = newDb.users.find(u => u.id === userId);
+            const me = newDb.users.find(u => u.id === currentUser.id);
+            
+            if (!targetUser.followers) targetUser.followers = [];
+            if (!me.following) me.following = [];
+
+            if (isFollowing) {
+              targetUser.followers = targetUser.followers.filter(id => id !== currentUser.id);
+              me.following = me.following.filter(id => id !== userId);
+            } else {
+              targetUser.followers.push(currentUser.id);
+              me.following.push(userId);
+            }
+            
+            saveDb(newDb);
+            onUpdate();
+          };
+
+          return (
+            <div className="pb-24">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 mb-6 overflow-hidden">
+                <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                <div className="px-5 pb-6">
+                  <div className="flex justify-between items-end -mt-12 mb-4">
+                    <div className="w-24 h-24 rounded-full border-4 border-white bg-slate-200 flex items-center justify-center overflow-hidden shadow-md">
+                      {profileUser.avatar ? <img src={profileUser.avatar} alt="" className="w-full h-full object-cover"/> : <i className="fa-solid fa-user text-3xl text-slate-400"></i>}
+                    </div>
+                    {!isMe && (
+                      <button 
+                        onClick={handleFollowToggle}
+                        className={`px-4 py-2 rounded-full font-bold text-sm ${
+                          isFollowing ? 'bg-slate-100 text-slate-800' : 'bg-blue-600 text-white'
+                        }`}
+                      >
+                        {isFollowing ? 'ဖော်လိုလုပ်ထားသည်' : 'ဖော်လိုလုပ်မည်'}
+                      </button>
+                    )}
+                  </div>
+                  
+                  <h2 className="text-2xl font-black text-slate-900">{profileUser.username}</h2>
+                  <p className="text-slate-600 text-sm mt-1">{profileUser.bio}</p>
+                  
+                  <div className="flex space-x-6 mt-4 text-sm">
+                    <div><strong className="text-slate-900">{profileUser.followers?.length || 0}</strong> Followers</div>
+                    <div><strong className="text-slate-900">{profileUser.following?.length || 0
